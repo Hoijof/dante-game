@@ -22,7 +22,8 @@ import {
 } from "./gameState";
 import { getCastleImage } from "./castleSvg";
 
-let gameState: GameState = initialGameState();
+let gameState: GameState =
+  typeof window === "undefined" ? serverSideState() : initialGameState();
 let gameOverOutside = false;
 let currentLetterSet = EASY_LETTERS;
 
