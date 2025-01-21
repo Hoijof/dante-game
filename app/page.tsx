@@ -9,6 +9,8 @@ import {
   MAX_DIFFICULTY,
   MIN_DIFFICULTY,
   SCORE_INCREMENT,
+  ENEMY_SMALL_SIZE,
+  ENEMY_LARGE_SIZE,
   initialGameState,
   GameState,
   Enemy,
@@ -56,8 +58,8 @@ const Home = () => {
 
           // Draw enemies
           context.fillStyle = "red";
-          context.font = "20px Arial";
           gameState.enemies.forEach((enemy) => {
+            context.font = `${enemy.size}px Arial`;
             context.fillText(enemy.letter, enemy.x, enemy.y);
           });
         }
@@ -178,8 +180,9 @@ const Home = () => {
           (enemy) => enemy.letter === letter
         );
         if (enemyIndex !== -1) {
+          const enemy = gameState.enemies[enemyIndex];
           gameState.enemies.splice(enemyIndex, 1);
-          gameState.score += SCORE_INCREMENT;
+          gameState.score += SCORE_INCREMENT * (enemy.size / ENEMY_SMALL_SIZE);
           killSound.current?.play();
         }
       }
@@ -192,10 +195,12 @@ const Home = () => {
 
   useEffect(() => {
     const spawnEnemies = () => {
+      const size = Math.random() < 0.8 ? ENEMY_SMALL_SIZE : ENEMY_LARGE_SIZE;
       const newEnemy: Enemy = {
         x: gameState.dimensions.width - 50,
         y: Math.random() * gameState.dimensions.height,
         letter: String.fromCharCode(65 + Math.floor(Math.random() * 26)),
+        size,
       };
       gameState.enemies.push(newEnemy);
       setRender((prev) => prev + 1); // Trigger re-render

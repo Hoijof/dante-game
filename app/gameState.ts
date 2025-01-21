@@ -2,6 +2,7 @@ export interface Enemy {
   x: number;
   y: number;
   letter: string;
+  size: number;
 }
 
 export interface GameState {
@@ -22,6 +23,8 @@ export const MAX_DIFFICULTY = 20;
 export const MIN_DIFFICULTY = 1;
 export const SCORE_INCREMENT = 10;
 export const FPS_UPDATE_INTERVAL = 1000;
+export const ENEMY_SMALL_SIZE = 20;
+export const ENEMY_LARGE_SIZE = 40;
 
 export const initialGameState = (): GameState => ({
   dimensions: { width: window.innerWidth, height: window.innerHeight },
