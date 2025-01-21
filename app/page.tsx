@@ -1,56 +1,29 @@
 "use client";
 import { useEffect, useRef, useState, useCallback } from "react";
+import {
+  BASE_WIDTH,
+  BASE_HEIGHT,
+  BASE_HEALTH,
+  ENEMY_SPEED,
+  ENEMY_SPAWN_RATE,
+  MAX_DIFFICULTY,
+  MIN_DIFFICULTY,
+  SCORE_INCREMENT,
+  initialGameState,
+  GameState,
+} from "./gameState";
+import { castleImage } from "./castleSvg";
 
-interface Enemy {
-  x: number;
-  y: number;
-  letter: string;
-}
+let gameState: GameState = initialGameState();
 
-const BASE_WIDTH = 50;
-const BASE_HEIGHT = 50;
-const BASE_HEALTH = 5;
-const ENEMY_SPEED = 0.25;
-const ENEMY_SPAWN_RATE = 4000;
-const MAX_DIFFICULTY = 10;
-const MIN_DIFFICULTY = 1;
-const SCORE_INCREMENT = 10;
-const FPS_UPDATE_INTERVAL = 1000;
-
-const initialGameState = () => ({
-  dimensions: { width: window.innerWidth, height: window.innerHeight },
-  base: { x: 50, y: window.innerHeight / 2, health: BASE_HEALTH },
-  enemies: [] as Enemy[],
-  score: 0,
-  difficulty: 1,
-  fps: 0,
-});
-
-let gameState = initialGameState();
-
-const castleSvg = `
-  <svg width="${BASE_WIDTH}" height="${BASE_HEIGHT}" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-    <rect x="10" y="30" width="10" height="20" fill="blue"/>
-    <rect x="25" y="20" width="15" height="30" fill="blue"/>
-    <rect x="45" y="30" width="10" height="20" fill="blue"/>
-    <rect x="0" y="50" width="64" height="10" fill="blue"/>
-    <rect x="20" y="10" width="5" height="10" fill="blue"/>
-    <rect x="39" y="10" width="5" height="10" fill="blue"/>
-  </svg>
-`;
-
-const img = new Image();
-const svg = new Blob([castleSvg], {
-  type: "image/svg+xml;charset=utf-8",
-});
-
-const url = URL.createObjectURL(svg);
-
-img.src = url;
 const Home = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [, setRender] = useState(0); // Dummy state to trigger re-renders
   const [gameOver, setGameOver] = useState(false);
+
+  const backgroundMusic = useRef<HTMLAudioElement | null>(null);
+  const hitSound = useRef<HTMLAudioElement | null>(null);
+  const killSound = useRef<HTMLAudioElement | null>(null);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -58,17 +31,15 @@ const Home = () => {
       const context = canvas.getContext("2d");
       if (context) {
         context.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw the base
         context.drawImage(
-          img,
+          castleImage,
           gameState.base.x - BASE_WIDTH / 2,
           gameState.base.y - BASE_HEIGHT / 2,
           BASE_WIDTH,
           BASE_HEIGHT
         );
-        // Draw the base
-        img.onload = () => {
-          URL.revokeObjectURL(url);
-        };
 
         // Draw health bar
         context.fillStyle = "green";
@@ -140,6 +111,7 @@ const Home = () => {
           if (gameState.base.health === 0) {
             setGameOver(true);
           }
+          hitSound.current?.play();
           return false;
         }
         return true;
@@ -151,6 +123,7 @@ const Home = () => {
     gameState = initialGameState();
     setGameOver(false);
     setRender((prev) => prev + 1); // Trigger re-render
+    backgroundMusic.current?.play();
   };
 
   useEffect(() => {
@@ -192,6 +165,7 @@ const Home = () => {
         );
         if (remainingEnemies.length < gameState.enemies.length) {
           gameState.score += SCORE_INCREMENT;
+          killSound.current?.play();
         }
         gameState.enemies = remainingEnemies;
       }
@@ -240,6 +214,30 @@ const Home = () => {
     };
     requestAnimationFrame(animationFrame);
   }, [draw, updateGameState]);
+
+  useEffect(() => {
+    backgroundMusic.current = new Audio("mega.mp3");
+    hitSound.current = new Audio("hit.wav");
+    killSound.current = new Audio("kill.wav");
+
+    backgroundMusic.current.loop = true;
+    backgroundMusic.current.volume = 0.3;
+
+    const playAudio = () => {
+      backgroundMusic.current?.play();
+      document.removeEventListener("click", playAudio);
+    };
+
+    document.addEventListener("click", playAudio);
+
+    return () => {
+      backgroundMusic.current?.pause();
+      backgroundMusic.current = null;
+      hitSound.current = null;
+      killSound.current = null;
+      document.removeEventListener("click", playAudio);
+    };
+  }, []);
 
   return (
     <div className="h-full w-full bg-black">
