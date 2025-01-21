@@ -1,3 +1,5 @@
+"use client";
+export const dynamic = "force-dynamic";
 import { BASE_WIDTH, BASE_HEIGHT } from "./gameState";
 
 export const castleSvg = `
@@ -11,11 +13,15 @@ export const castleSvg = `
   </svg>
 `;
 
-const img = new Image();
-const svg = new Blob([castleSvg], {
-  type: "image/svg+xml;charset=utf-8",
-});
-const url = URL.createObjectURL(svg);
-img.src = url;
+function getImage() {
+  const img = new Image();
+  const svg = new Blob([castleSvg], {
+    type: "image/svg+xml;charset=utf-8",
+  });
+  const url = URL.createObjectURL(svg);
+  img.src = url;
 
-export const castleImage = img;
+  return img;
+}
+
+export const getCastleImage = getImage;

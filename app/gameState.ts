@@ -53,8 +53,17 @@ export const HARD_LETTERS = [
 ];
 
 export const initialGameState = (): GameState => ({
-  dimensions: { width: window.innerWidth, height: window.innerHeight },
-  base: { x: 50, y: window.innerHeight / 2, health: BASE_HEALTH },
+  dimensions: { width: window?.innerWidth, height: window?.innerHeight },
+  base: { x: 50, y: window?.innerHeight / 2, health: BASE_HEALTH },
+  enemies: [],
+  score: 0,
+  difficulty: 1,
+  fps: 0,
+});
+
+export const serverSideState = (): GameState => ({
+  dimensions: { width: 200, height: 200 },
+  base: { x: 50, y: 200 / 2, health: BASE_HEALTH },
   enemies: [],
   score: 0,
   difficulty: 1,

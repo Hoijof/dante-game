@@ -1,4 +1,5 @@
 "use client";
+export const dynamic = "force-dynamic";
 import { useEffect, useRef, useState, useCallback } from "react";
 import {
   BASE_WIDTH,
@@ -17,8 +18,9 @@ import {
   EASY_LETTERS,
   MEDIUM_LETTERS,
   HARD_LETTERS,
+  serverSideState,
 } from "./gameState";
-import { castleImage } from "./castleSvg";
+import { getCastleImage } from "./castleSvg";
 
 let gameState: GameState = initialGameState();
 let gameOverOutside = false;
@@ -28,6 +30,9 @@ const Home = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [, setRender] = useState(0); // Dummy state to trigger re-renders
   const [gameOver, setGameOver] = useState(false);
+  const [castleImage] = useState(
+    typeof window === "undefined" ? null : getCastleImage()
+  );
 
   const backgroundMusic = useRef<HTMLAudioElement | null>(null);
   const hitSound = useRef<HTMLAudioElement | null>(null);
@@ -44,7 +49,7 @@ const Home = () => {
         if (!gameOver) {
           // Draw the base
           context.drawImage(
-            castleImage,
+            castleImage as CanvasImageSource,
             gameState.base.x - BASE_WIDTH / 2,
             gameState.base.y - BASE_HEIGHT / 2,
             BASE_WIDTH,
@@ -142,7 +147,8 @@ const Home = () => {
   }, [gameOver]);
 
   const resetGame = () => {
-    gameState = initialGameState();
+    gameState =
+      typeof window === "undefined" ? serverSideState() : initialGameState();
     setGameOver(false);
     gameOverOutside = false;
     setRender((prev) => prev + 1); // Trigger re-render
