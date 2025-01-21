@@ -34,6 +34,8 @@ const Home = () => {
   const [castleImage] = useState(
     typeof window === "undefined" ? null : getCastleImage()
   );
+  const [windowWith, setWindowWidth] = useState(200);
+  const [windowHeight, setWindowHeight] = useState(200);
 
   const backgroundMusic = useRef<HTMLAudioElement | null>(null);
   const hitSound = useRef<HTMLAudioElement | null>(null);
@@ -157,6 +159,9 @@ const Home = () => {
   };
 
   useEffect(() => {
+    setWindowWidth(window.innerWidth);
+    setWindowHeight(window.innerHeight);
+
     const handleResize = () => {
       gameState.dimensions = {
         width: window.innerWidth,
@@ -289,8 +294,8 @@ const Home = () => {
     <div className="h-full w-full bg-black">
       <canvas
         ref={canvasRef}
-        width={gameState.dimensions.width}
-        height={gameState.dimensions.height}
+        width={windowWith}
+        height={windowHeight}
         style={{ width: "100%", height: "100%" }}
       />
     </div>
