@@ -11,10 +11,12 @@ import {
   SCORE_INCREMENT,
   initialGameState,
   GameState,
+  Enemy,
 } from "./gameState";
 import { castleImage } from "./castleSvg";
 
 let gameState: GameState = initialGameState();
+let gameOverOutside = false;
 
 const Home = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -24,6 +26,7 @@ const Home = () => {
   const backgroundMusic = useRef<HTMLAudioElement | null>(null);
   const hitSound = useRef<HTMLAudioElement | null>(null);
   const killSound = useRef<HTMLAudioElement | null>(null);
+  const deadSound = useRef<HTMLAudioElement | null>(null);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -32,30 +35,32 @@ const Home = () => {
       if (context) {
         context.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Draw the base
-        context.drawImage(
-          castleImage,
-          gameState.base.x - BASE_WIDTH / 2,
-          gameState.base.y - BASE_HEIGHT / 2,
-          BASE_WIDTH,
-          BASE_HEIGHT
-        );
+        if (!gameOver) {
+          // Draw the base
+          context.drawImage(
+            castleImage,
+            gameState.base.x - BASE_WIDTH / 2,
+            gameState.base.y - BASE_HEIGHT / 2,
+            BASE_WIDTH,
+            BASE_HEIGHT
+          );
 
-        // Draw health bar
-        context.fillStyle = "green";
-        context.fillRect(
-          gameState.base.x - BASE_WIDTH / 2,
-          gameState.base.y - BASE_HEIGHT / 2 - 10,
-          (BASE_WIDTH * gameState.base.health) / BASE_HEALTH,
-          5
-        );
+          // Draw health bar
+          context.fillStyle = "green";
+          context.fillRect(
+            gameState.base.x - BASE_WIDTH / 2,
+            gameState.base.y - BASE_HEIGHT / 2 - 10,
+            (BASE_WIDTH * gameState.base.health) / BASE_HEALTH,
+            5
+          );
 
-        // Draw enemies
-        context.fillStyle = "red";
-        context.font = "20px Arial";
-        gameState.enemies.forEach((enemy) => {
-          context.fillText(enemy.letter, enemy.x, enemy.y);
-        });
+          // Draw enemies
+          context.fillStyle = "red";
+          context.font = "20px Arial";
+          gameState.enemies.forEach((enemy) => {
+            context.fillText(enemy.letter, enemy.x, enemy.y);
+          });
+        }
 
         // Draw score
         context.fillStyle = "white";
@@ -100,28 +105,37 @@ const Home = () => {
   }, [gameOver]);
 
   const updateGameState = useCallback(() => {
-    gameState.enemies = gameState.enemies
-      .map((enemy) => ({
-        ...enemy,
-        x: enemy.x - ENEMY_SPEED * gameState.difficulty,
-      }))
-      .filter((enemy) => {
-        if (enemy.x < gameState.base.x) {
-          gameState.base.health = Math.max(gameState.base.health - 1, 0);
-          if (gameState.base.health === 0) {
-            setGameOver(true);
+    if (!gameOverOutside) {
+      gameState.enemies = gameState.enemies
+        .map((enemy) => ({
+          ...enemy,
+          x: enemy.x - ENEMY_SPEED * gameState.difficulty,
+        }))
+        .filter((enemy) => {
+          if (enemy.x < gameState.base.x) {
+            gameState.base.health = Math.max(gameState.base.health - 1, 0);
+            if (gameState.base.health === 0) {
+              setGameOver(true);
+              gameOverOutside = true;
+              backgroundMusic.current?.pause();
+              deadSound.current?.play();
+              hitSound.current?.pause();
+              killSound.current?.pause();
+            }
+
+            hitSound.current?.play();
+            return false;
           }
-          hitSound.current?.play();
-          return false;
-        }
-        return true;
-      });
-    setRender((prev) => prev + 1); // Trigger re-render
-  }, []);
+          return true;
+        });
+      setRender((prev) => prev + 1); // Trigger re-render
+    }
+  }, [gameOver]);
 
   const resetGame = () => {
     gameState = initialGameState();
     setGameOver(false);
+    gameOverOutside = false;
     setRender((prev) => prev + 1); // Trigger re-render
     backgroundMusic.current?.play();
   };
@@ -160,14 +174,14 @@ const Home = () => {
       } else if (letter === "R" && gameOver) {
         resetGame();
       } else {
-        const remainingEnemies = gameState.enemies.filter(
-          (enemy) => enemy.letter !== letter
+        const enemyIndex = gameState.enemies.findIndex(
+          (enemy) => enemy.letter === letter
         );
-        if (remainingEnemies.length < gameState.enemies.length) {
+        if (enemyIndex !== -1) {
+          gameState.enemies.splice(enemyIndex, 1);
           gameState.score += SCORE_INCREMENT;
           killSound.current?.play();
         }
-        gameState.enemies = remainingEnemies;
       }
       setRender((prev) => prev + 1); // Trigger re-render
     };
@@ -208,17 +222,20 @@ const Home = () => {
 
   useEffect(() => {
     const animationFrame = () => {
-      updateGameState();
+      if (!gameOver) {
+        updateGameState();
+      }
       draw();
       requestAnimationFrame(animationFrame);
     };
     requestAnimationFrame(animationFrame);
-  }, [draw, updateGameState]);
+  }, [draw, updateGameState, gameOver]);
 
   useEffect(() => {
     backgroundMusic.current = new Audio("mega.mp3");
     hitSound.current = new Audio("hit.wav");
     killSound.current = new Audio("kill.wav");
+    deadSound.current = new Audio("dead.wav");
 
     backgroundMusic.current.loop = true;
     backgroundMusic.current.volume = 0.3;
@@ -226,15 +243,18 @@ const Home = () => {
     const playAudio = () => {
       backgroundMusic.current?.play();
       document.removeEventListener("click", playAudio);
+      document.removeEventListener("keypress", playAudio);
     };
 
     document.addEventListener("click", playAudio);
+    document.addEventListener("keypress", playAudio);
 
     return () => {
       backgroundMusic.current?.pause();
       backgroundMusic.current = null;
       hitSound.current = null;
       killSound.current = null;
+      deadSound.current = null;
       document.removeEventListener("click", playAudio);
     };
   }, []);
