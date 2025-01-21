@@ -14,11 +14,15 @@ import {
   initialGameState,
   GameState,
   Enemy,
+  EASY_LETTERS,
+  MEDIUM_LETTERS,
+  HARD_LETTERS,
 } from "./gameState";
 import { castleImage } from "./castleSvg";
 
 let gameState: GameState = initialGameState();
 let gameOverOutside = false;
+let currentLetterSet = EASY_LETTERS;
 
 const Home = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -72,6 +76,9 @@ const Home = () => {
         // Draw difficulty
         context.fillText(`Difficulty: ${gameState.difficulty}`, 10, 60);
 
+        // Draw current letter set
+        context.fillText(`Letters: ${currentLetterSet.join(", ")}`, 10, 90);
+
         // Draw FPS
         context.fillText(
           `FPS: ${gameState.fps}`,
@@ -107,7 +114,7 @@ const Home = () => {
   }, [gameOver]);
 
   const updateGameState = useCallback(() => {
-    if (!gameOverOutside) {
+    if (!gameOverOutside && gameState.difficulty > 0) {
       gameState.enemies = gameState.enemies
         .map((enemy) => ({
           ...enemy,
@@ -175,6 +182,12 @@ const Home = () => {
         );
       } else if (letter === "R" && gameOver) {
         resetGame();
+      } else if (letter === "1") {
+        currentLetterSet = EASY_LETTERS;
+      } else if (letter === "2") {
+        currentLetterSet = MEDIUM_LETTERS;
+      } else if (letter === "3") {
+        currentLetterSet = HARD_LETTERS;
       } else {
         const enemyIndex = gameState.enemies.findIndex(
           (enemy) => enemy.letter === letter
@@ -199,7 +212,8 @@ const Home = () => {
       const newEnemy: Enemy = {
         x: gameState.dimensions.width - 50,
         y: Math.random() * gameState.dimensions.height,
-        letter: String.fromCharCode(65 + Math.floor(Math.random() * 26)),
+        letter:
+          currentLetterSet[Math.floor(Math.random() * currentLetterSet.length)],
         size,
       };
       gameState.enemies.push(newEnemy);
@@ -208,7 +222,7 @@ const Home = () => {
 
     const interval = setInterval(
       spawnEnemies,
-      ENEMY_SPAWN_RATE / gameState.difficulty
+      ENEMY_SPAWN_RATE / (gameState.difficulty || 1)
     );
     return () => clearInterval(interval);
   }, [gameState.difficulty]);
