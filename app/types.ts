@@ -1,4 +1,4 @@
-export type GameStatus = 'IDLE' | 'PLAYING' | 'PAUSED' | 'GAME_OVER';
+export type GameStatus = 'IDLE' | 'PLAYING' | 'PAUSED' | 'GAME_OVER' | 'VICTORY';
 
 export interface Point {
   x: number;
@@ -6,12 +6,13 @@ export interface Point {
 }
 
 export interface Enemy {
-  id: string; // Add ID for easier removal
+  id: string;
   x: number;
   y: number;
   letter: string;
   size: number;
   color: string;
+  spawnTime: number; // For auto-kill logic
 }
 
 export interface Particle {
@@ -24,6 +25,7 @@ export interface Particle {
   maxLife: number;
   color: string;
   size: number;
+  type?: 'NORMAL' | 'GOLD'; // Different visuals
 }
 
 export interface Star {
@@ -37,6 +39,9 @@ export interface Star {
 export interface GameState {
   status: GameStatus;
   score: number;
+  sessionGold: number;
+  killCount: number;
+  timeElapsed: number; // in seconds
   highScore: number;
   difficulty: number;
   baseHealth: number;

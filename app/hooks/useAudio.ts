@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 
-type SoundName = 'hit' | 'kill' | 'dead';
+type SoundName = 'hit' | 'kill' | 'dead' | 'levelUp';
 
 export const useAudio = () => {
   const [volume, setVolume] = useState(0.3);
@@ -10,7 +10,8 @@ export const useAudio = () => {
   const soundsRef = useRef<Record<SoundName, HTMLAudioElement | null>>({
     hit: null,
     kill: null,
-    dead: null
+    dead: null,
+    levelUp: null
   });
 
   useEffect(() => {
@@ -21,11 +22,12 @@ export const useAudio = () => {
     soundsRef.current.hit = new Audio('/hit.wav');
     soundsRef.current.kill = new Audio('/kill.wav');
     soundsRef.current.dead = new Audio('/dead.wav');
+    soundsRef.current.levelUp = new Audio('/kill.wav'); // Placeholder reuse
 
     return () => {
       bgmRef.current?.pause();
       bgmRef.current = null;
-      soundsRef.current = { hit: null, kill: null, dead: null };
+      soundsRef.current = { hit: null, kill: null, dead: null, levelUp: null };
     };
   }, []);
 
