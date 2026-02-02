@@ -294,13 +294,21 @@ export const useGameEngine = () => {
   }, [castleImage]);
 
   const loop = useCallback((time: number) => {
+    if (previousTimeRef.current === 0) {
+        previousTimeRef.current = time;
+        requestRef.current = requestAnimationFrame(loop);
+        return;
+    }
     const deltaTime = time - previousTimeRef.current;
     previousTimeRef.current = time;
 
-    // FPS Calc
-    gameStateRef.current.fps = Math.round(1000 / deltaTime);
+    // Cap deltaTime to prevent huge jumps (e.g. tab switching)
+    const cappedDelta = Math.min(deltaTime, 100);
 
-    update(deltaTime);
+    // FPS Calc
+    gameStateRef.current.fps = Math.round(1000 / (deltaTime || 16));
+
+    update(cappedDelta);
     draw();
 
     requestRef.current = requestAnimationFrame(loop);
