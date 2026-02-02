@@ -36,6 +36,8 @@ const Home = () => {
     if (level.isTown) {
       setCurrentLevelId(levelId);
       setCurrentView('TOWN');
+      // Fix: Visiting town unlocks its next levels immediately
+      completeLevel(level.id, level.nextLevels, 0);
     } else {
       setCurrentLevelId(levelId);
       setCurrentView('GAME');
