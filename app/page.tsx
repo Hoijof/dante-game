@@ -1,303 +1,134 @@
 "use client";
 export const dynamic = "force-dynamic";
-import { useEffect, useRef, useState, useCallback } from "react";
-import {
-  BASE_WIDTH,
-  BASE_HEIGHT,
-  BASE_HEALTH,
-  ENEMY_SPEED,
-  ENEMY_SPAWN_RATE,
-  MAX_DIFFICULTY,
-  MIN_DIFFICULTY,
-  SCORE_INCREMENT,
-  ENEMY_SMALL_SIZE,
-  ENEMY_LARGE_SIZE,
-  initialGameState,
-  GameState,
-  Enemy,
-  EASY_LETTERS,
-  MEDIUM_LETTERS,
-  HARD_LETTERS,
-  serverSideState,
-} from "./gameState";
-import { getCastleImage } from "./castleSvg";
 
-let gameState: GameState =
-  typeof window === "undefined" ? serverSideState() : initialGameState();
-let gameOverOutside = false;
-let currentLetterSet = EASY_LETTERS;
+import { useGameEngine } from "./hooks/useGameEngine";
 
 const Home = () => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [, setRender] = useState(0); // Dummy state to trigger re-renders
-  const [gameOver, setGameOver] = useState(false);
-  const [castleImage] = useState(
-    typeof window === "undefined" ? null : getCastleImage()
-  );
-  const [windowWith, setWindowWidth] = useState(200);
-  const [windowHeight, setWindowHeight] = useState(200);
-
-  const backgroundMusic = useRef<HTMLAudioElement | null>(null);
-  const hitSound = useRef<HTMLAudioElement | null>(null);
-  const killSound = useRef<HTMLAudioElement | null>(null);
-  const deadSound = useRef<HTMLAudioElement | null>(null);
-
-  const draw = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const context = canvas.getContext("2d");
-      if (context) {
-        context.clearRect(0, 0, canvas.width, canvas.height);
-
-        if (!gameOver) {
-          // Draw the base
-          context.drawImage(
-            castleImage as CanvasImageSource,
-            gameState.base.x - BASE_WIDTH / 2,
-            gameState.base.y - BASE_HEIGHT / 2,
-            BASE_WIDTH,
-            BASE_HEIGHT
-          );
-
-          // Draw health bar
-          context.fillStyle = "green";
-          context.fillRect(
-            gameState.base.x - BASE_WIDTH / 2,
-            gameState.base.y - BASE_HEIGHT / 2 - 10,
-            (BASE_WIDTH * gameState.base.health) / BASE_HEALTH,
-            5
-          );
-
-          // Draw enemies
-          context.fillStyle = "red";
-          gameState.enemies.forEach((enemy) => {
-            context.font = `${enemy.size}px Arial`;
-            context.fillText(enemy.letter, enemy.x, enemy.y);
-          });
-        }
-
-        // Draw score
-        context.fillStyle = "white";
-        context.font = "20px Arial";
-        context.fillText(`Score: ${gameState.score}`, 10, 30);
-
-        // Draw difficulty
-        context.fillText(`Difficulty: ${gameState.difficulty}`, 10, 60);
-
-        // Draw current letter set
-        context.fillText(`Letters: ${currentLetterSet.join(", ")}`, 10, 90);
-
-        // Draw FPS
-        context.fillText(
-          `FPS: ${gameState.fps}`,
-          gameState.dimensions.width - 100,
-          30
-        );
-
-        // Draw game over screen
-        if (gameOver) {
-          context.fillStyle = "rgba(0, 0, 0, 0.5)";
-          context.fillRect(0, 0, canvas.width, canvas.height);
-          context.fillStyle = "white";
-          context.font = "40px Arial";
-          context.fillText(
-            "Game Over",
-            canvas.width / 2 - 100,
-            canvas.height / 2 - 20
-          );
-          context.font = "20px Arial";
-          context.fillText(
-            `Score: ${gameState.score}`,
-            canvas.width / 2 - 50,
-            canvas.height / 2 + 20
-          );
-          context.fillText(
-            "Press R to Restart",
-            canvas.width / 2 - 100,
-            canvas.height / 2 + 60
-          );
-        }
-      }
-    }
-  }, [gameOver]);
-
-  const updateGameState = useCallback(() => {
-    if (!gameOverOutside && gameState.difficulty > 0) {
-      gameState.enemies = gameState.enemies
-        .map((enemy) => ({
-          ...enemy,
-          x: enemy.x - ENEMY_SPEED * gameState.difficulty,
-        }))
-        .filter((enemy) => {
-          if (enemy.x < gameState.base.x) {
-            gameState.base.health = Math.max(gameState.base.health - 1, 0);
-            if (gameState.base.health === 0) {
-              setGameOver(true);
-              gameOverOutside = true;
-              backgroundMusic.current?.pause();
-              deadSound.current?.play();
-              hitSound.current?.pause();
-              killSound.current?.pause();
-            }
-
-            hitSound.current?.play();
-            return false;
-          }
-          return true;
-        });
-      setRender((prev) => prev + 1); // Trigger re-render
-    }
-  }, [gameOver]);
-
-  const resetGame = () => {
-    gameState =
-      typeof window === "undefined" ? serverSideState() : initialGameState();
-    setGameOver(false);
-    gameOverOutside = false;
-    setRender((prev) => prev + 1); // Trigger re-render
-    backgroundMusic.current?.play();
-  };
-
-  useEffect(() => {
-    setWindowWidth(window.innerWidth);
-    setWindowHeight(window.innerHeight);
-
-    const handleResize = () => {
-      gameState.dimensions = {
-        width: window.innerWidth,
-        height: window.innerHeight,
-      };
-      gameState.base = {
-        x: 50,
-        y: window.innerHeight / 2,
-        health: BASE_HEALTH,
-      };
-      setRender((prev) => prev + 1); // Trigger re-render
-    };
-
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
-  useEffect(() => {
-    const handleKeyPress = (event: KeyboardEvent) => {
-      const letter = event.key.toUpperCase();
-      if (letter === "+") {
-        gameState.difficulty = Math.min(
-          gameState.difficulty + 1,
-          MAX_DIFFICULTY
-        );
-      } else if (letter === "-") {
-        gameState.difficulty = Math.max(
-          gameState.difficulty - 1,
-          MIN_DIFFICULTY
-        );
-      } else if (letter === "R" && gameOver) {
-        resetGame();
-      } else if (letter === "1") {
-        currentLetterSet = EASY_LETTERS;
-      } else if (letter === "2") {
-        currentLetterSet = MEDIUM_LETTERS;
-      } else if (letter === "3") {
-        currentLetterSet = HARD_LETTERS;
-      } else {
-        const enemyIndex = gameState.enemies.findIndex(
-          (enemy) => enemy.letter === letter
-        );
-        if (enemyIndex !== -1) {
-          const enemy = gameState.enemies[enemyIndex];
-          gameState.enemies.splice(enemyIndex, 1);
-          gameState.score += SCORE_INCREMENT * (enemy.size / ENEMY_SMALL_SIZE);
-          killSound.current?.play();
-        }
-      }
-      setRender((prev) => prev + 1); // Trigger re-render
-    };
-
-    window.addEventListener("keypress", handleKeyPress);
-    return () => window.removeEventListener("keypress", handleKeyPress);
-  }, [gameOver]);
-
-  useEffect(() => {
-    const spawnEnemies = () => {
-      const size = Math.random() < 0.8 ? ENEMY_SMALL_SIZE : ENEMY_LARGE_SIZE;
-      const newEnemy: Enemy = {
-        x: gameState.dimensions.width - 50,
-        y: Math.random() * gameState.dimensions.height,
-        letter:
-          currentLetterSet[Math.floor(Math.random() * currentLetterSet.length)],
-        size,
-      };
-      gameState.enemies.push(newEnemy);
-      setRender((prev) => prev + 1); // Trigger re-render
-    };
-
-    const interval = setInterval(
-      spawnEnemies,
-      ENEMY_SPAWN_RATE / (gameState.difficulty || 1)
-    );
-    return () => clearInterval(interval);
-  }, [gameState.difficulty]);
-
-  useEffect(() => {
-    let lastFrameTime = performance.now();
-    const updateFps = () => {
-      const now = performance.now();
-      const delta = now - lastFrameTime;
-      gameState.fps = Math.round(1000 / delta);
-      lastFrameTime = now;
-      requestAnimationFrame(updateFps);
-    };
-    requestAnimationFrame(updateFps);
-  }, []);
-
-  useEffect(() => {
-    const animationFrame = () => {
-      if (!gameOver) {
-        updateGameState();
-      }
-      draw();
-      requestAnimationFrame(animationFrame);
-    };
-    requestAnimationFrame(animationFrame);
-  }, [draw, updateGameState, gameOver]);
-
-  useEffect(() => {
-    backgroundMusic.current = new Audio("mega.mp3");
-    hitSound.current = new Audio("hit.wav");
-    killSound.current = new Audio("kill.wav");
-    deadSound.current = new Audio("dead.wav");
-
-    backgroundMusic.current.loop = true;
-    backgroundMusic.current.volume = 0.3;
-
-    const playAudio = () => {
-      backgroundMusic.current?.play();
-      document.removeEventListener("click", playAudio);
-      document.removeEventListener("keypress", playAudio);
-    };
-
-    document.addEventListener("click", playAudio);
-    document.addEventListener("keypress", playAudio);
-
-    return () => {
-      backgroundMusic.current?.pause();
-      backgroundMusic.current = null;
-      hitSound.current = null;
-      killSound.current = null;
-      deadSound.current = null;
-      document.removeEventListener("click", playAudio);
-    };
-  }, []);
+  const { canvasRef, uiState, startGame, togglePause, audio } = useGameEngine();
 
   return (
-    <div className="h-full w-full bg-black">
+    <div className="relative h-screen w-screen bg-black overflow-hidden">
+      {/* Canvas Layer */}
       <canvas
         ref={canvasRef}
-        width={windowWith}
-        height={windowHeight}
-        style={{ width: "100%", height: "100%" }}
+        className="block w-full h-full"
       />
+
+      {/* UI Overlay Layer */}
+      <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
+
+        {/* HUD */}
+        {uiState.status !== 'IDLE' && (
+            <div className="p-4 flex justify-between text-white font-mono text-xl">
+                <div>
+                    <div>Score: {uiState.score}</div>
+                    <div>High Score: {uiState.highScore}</div>
+                    <div>Difficulty: {uiState.difficulty}</div>
+                </div>
+                <div className="text-right">
+                    <div className="text-green-500">Health: {'♥'.repeat(uiState.baseHealth)}</div>
+                </div>
+            </div>
+        )}
+
+        {/* Level Up Notification */}
+        {uiState.showLevelUp && (
+            <div className="absolute top-1/4 left-0 w-full text-center pointer-events-none animate-bounce">
+                <div className="text-6xl font-bold text-yellow-400 drop-shadow-lg">
+                    LEVEL UP!
+                </div>
+                <div className="text-2xl text-yellow-200">
+                    Difficulty Increased
+                </div>
+            </div>
+        )}
+
+        {/* Start Screen */}
+        {uiState.status === 'IDLE' && (
+             <div className="absolute inset-0 flex items-center justify-center bg-black/80 pointer-events-auto">
+                <div className="text-center text-white">
+                    <h1 className="text-6xl font-bold mb-4 text-blue-500">TYPE DEFENSE</h1>
+                    <p className="mb-8 text-xl">Type the letters to destroy enemies!</p>
+                    <button
+                        onClick={startGame}
+                        className="px-8 py-4 bg-blue-600 hover:bg-blue-700 rounded text-xl font-bold transition-colors"
+                    >
+                        START GAME (ENTER)
+                    </button>
+
+                    <div className="mt-8">
+                        <label className="block text-sm font-bold mb-2">Volume: {Math.round(audio.volume * 100)}%</label>
+                        <input
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.1"
+                            value={audio.volume}
+                            onChange={(e) => audio.setVolume(parseFloat(e.target.value))}
+                            className="w-48 cursor-pointer"
+                        />
+                        <button
+                            onClick={() => audio.setIsMuted(!audio.isMuted)}
+                            className="ml-4 px-3 py-1 bg-gray-700 rounded text-sm"
+                        >
+                            {audio.isMuted ? 'Unmute' : 'Mute'}
+                        </button>
+                    </div>
+                </div>
+             </div>
+        )}
+
+        {/* Pause Screen */}
+        {uiState.status === 'PAUSED' && (
+             <div className="absolute inset-0 flex items-center justify-center bg-black/50 pointer-events-auto">
+                <div className="text-center text-white">
+                    <h2 className="text-4xl font-bold mb-4">PAUSED</h2>
+                    <button
+                        onClick={togglePause}
+                        className="px-6 py-3 bg-gray-600 hover:bg-gray-700 rounded text-lg font-bold"
+                    >
+                        RESUME (ESC)
+                    </button>
+
+                    <div className="mt-8">
+                        <label className="block text-sm font-bold mb-2">Volume: {Math.round(audio.volume * 100)}%</label>
+                        <input
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.1"
+                            value={audio.volume}
+                            onChange={(e) => audio.setVolume(parseFloat(e.target.value))}
+                            className="w-48 cursor-pointer"
+                        />
+                         <button
+                            onClick={() => audio.setIsMuted(!audio.isMuted)}
+                            className="ml-4 px-3 py-1 bg-gray-700 rounded text-sm"
+                        >
+                            {audio.isMuted ? 'Unmute' : 'Mute'}
+                        </button>
+                    </div>
+                </div>
+             </div>
+        )}
+
+        {/* Game Over Screen */}
+        {uiState.status === 'GAME_OVER' && (
+             <div className="absolute inset-0 flex items-center justify-center bg-red-900/80 pointer-events-auto">
+                <div className="text-center text-white">
+                    <h2 className="text-5xl font-bold mb-4 text-red-500">GAME OVER</h2>
+                    <p className="text-2xl mb-2">Final Score: {uiState.score}</p>
+                    <p className="text-xl mb-8">High Score: {uiState.highScore}</p>
+                    <button
+                        onClick={startGame}
+                        className="px-8 py-4 bg-red-600 hover:bg-red-700 rounded text-xl font-bold transition-colors"
+                    >
+                        TRY AGAIN (ENTER)
+                    </button>
+                </div>
+             </div>
+        )}
+      </div>
     </div>
   );
 };

@@ -1,6 +1,6 @@
 "use client";
 export const dynamic = "force-dynamic";
-import { BASE_WIDTH, BASE_HEIGHT } from "./gameState";
+import { BASE_WIDTH, BASE_HEIGHT } from "./constants";
 
 export const castleSvg = `
   <svg width="${BASE_WIDTH}" height="${BASE_HEIGHT}" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
