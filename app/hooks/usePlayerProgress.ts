@@ -41,6 +41,19 @@ export const usePlayerProgress = () => {
       if (prev.gold < upgrade.cost) return prev;
       if (prev.upgrades.includes(upgrade.id)) return prev;
 
+      if (upgrade.type === 'TOWN_UPGRADE') {
+        const upgradeLevel = Number(upgrade.id.split('_').pop());
+        const expectedLevel = prev.townLevel + 1;
+        if (!Number.isFinite(upgradeLevel) || upgradeLevel !== expectedLevel) return prev;
+
+        return {
+          ...prev,
+          gold: prev.gold - upgrade.cost,
+          upgrades: [...prev.upgrades, upgrade.id],
+          townLevel: prev.townLevel + 1
+        };
+      }
+
       return {
         ...prev,
         gold: prev.gold - upgrade.cost,
@@ -62,9 +75,11 @@ export const usePlayerProgress = () => {
           if (!newUnlocked.includes(id)) newUnlocked.push(id);
       });
 
+      const townBonus = Math.floor(rewardGold * (prev.townLevel * 0.1));
+
       return {
         ...prev,
-        gold: prev.gold + rewardGold,
+        gold: prev.gold + rewardGold + townBonus,
         completedLevels: newCompleted,
         unlockedLevels: newUnlocked
       };

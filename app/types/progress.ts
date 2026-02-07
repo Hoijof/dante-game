@@ -1,6 +1,6 @@
 export interface Upgrade {
   id: string;
-  type: 'AUTO_LETTER' | 'HEALTH_BOOST';
+  type: 'AUTO_LETTER' | 'HEALTH_BOOST' | 'TOWN_UPGRADE';
   target?: string; // e.g., 'A' for auto-letter
   cost: number;
   name: string; // Symbolic name or icon
@@ -42,6 +42,7 @@ export interface MapNode extends LevelConfig {
 export interface PlayerState {
   gold: number;
   maxHealth: number;
+  townLevel: number;
   completedLevels: string[]; // IDs
   unlockedLevels: string[]; // IDs
   upgrades: string[]; // IDs of purchased upgrades (e.g. "auto-A")
@@ -54,6 +55,7 @@ export interface PlayerState {
 export const INITIAL_PLAYER_STATE: PlayerState = {
     gold: 0,
     maxHealth: 5,
+    townLevel: 0,
     completedLevels: [],
     unlockedLevels: ['level-1'], // Start with Tutorial
     upgrades: [],

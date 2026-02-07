@@ -9,6 +9,9 @@ const MEDIUM_1 = [...MEDIUM_LETTERS.slice(0, 10)]; // Subset
 const MEDIUM_2 = MEDIUM_LETTERS;
 const HARD_1 = [...MEDIUM_LETTERS, 'Q', 'W', 'E', 'R'];
 const HARD_2 = HARD_LETTERS;
+const SYLLABLES_1 = ['CA', 'CE', 'CI', 'CO', 'CU', 'TA', 'TE', 'TI', 'TO', 'TU'];
+const SYLLABLES_2 = [...SYLLABLES_1, 'PA', 'PE', 'PI', 'PO', 'PU', 'LA', 'LE', 'LI', 'LO', 'LU'];
+const SYLLABLES_3 = [...SYLLABLES_2, 'MA', 'ME', 'MI', 'MO', 'MU', 'SA', 'SE', 'SI', 'SO', 'SU'];
 
 export const GAME_LEVELS: MapNode[] = [
     {
@@ -64,7 +67,7 @@ export const GAME_LEVELS: MapNode[] = [
         description: 'They move faster!',
         difficulty: 2.0,
         letters: MEDIUM_1,
-        winCondition: { type: 'SURVIVE_TIME', value: 45 },
+        winCondition: { type: 'KILL_COUNT', value: 18 },
         rewardGold: 100,
         nextLevels: ['level-5'],
         position: { x: 600, y: 150 }
@@ -99,7 +102,7 @@ export const GAME_LEVELS: MapNode[] = [
         description: 'Shiny but dangerous.',
         difficulty: 2.2,
         letters: MEDIUM_1,
-        winCondition: { type: 'SURVIVE_TIME', value: 45 },
+        winCondition: { type: 'KILL_COUNT', value: 22 },
         rewardGold: 110,
         nextLevels: ['level-5'],
         position: { x: 600, y: 450 }
@@ -123,9 +126,44 @@ export const GAME_LEVELS: MapNode[] = [
         description: 'Defeat the Boss!',
         difficulty: 4.0,
         letters: HARD_1,
-        winCondition: { type: 'SURVIVE_TIME', value: 60 },
+        winCondition: { type: 'KILL_COUNT', value: 40 },
         rewardGold: 300,
-        nextLevels: [],
+        nextLevels: ['world-2-1'],
         position: { x: 900, y: 300 }
+    },
+
+    // World 2: Syllable Realm
+    {
+        id: 'world-2-1',
+        name: 'Syllable Shore 🌊',
+        description: 'Two-letter syllables arrive.',
+        difficulty: 4.4,
+        letters: SYLLABLES_1,
+        winCondition: { type: 'KILL_COUNT', value: 25 },
+        rewardGold: 220,
+        nextLevels: ['world-2-2'],
+        position: { x: 1050, y: 240 }
+    },
+    {
+        id: 'world-2-2',
+        name: 'Echo Lagoon 🔮',
+        description: 'Chain the syllables.',
+        difficulty: 4.9,
+        letters: SYLLABLES_2,
+        winCondition: { type: 'KILL_COUNT', value: 30 },
+        rewardGold: 260,
+        nextLevels: ['world-2-3'],
+        position: { x: 1200, y: 200 }
+    },
+    {
+        id: 'world-2-3',
+        name: 'Temple of Sounds 🏛️',
+        description: 'Master the rhythm.',
+        difficulty: 5.5,
+        letters: SYLLABLES_3,
+        winCondition: { type: 'KILL_COUNT', value: 38 },
+        rewardGold: 320,
+        nextLevels: [],
+        position: { x: 1350, y: 180 }
     }
 ];
