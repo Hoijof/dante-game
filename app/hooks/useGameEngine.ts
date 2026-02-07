@@ -10,20 +10,23 @@ import {
   PlayerState
 } from '../types/progress';
 import {
-  BASE_INITIAL_HEALTH,
   ENEMY_SPEED_BASE,
   ENEMY_SPAWN_RATE_BASE,
   SCORE_INCREMENT,
   ENEMY_SMALL_SIZE,
-  ENEMY_LARGE_SIZE
+  ENEMY_LARGE_SIZE,
+  MANA_REGEN_PER_SECOND
 } from '../constants';
 import { getCastleImage } from '../castleSvg';
 import { useAudio } from './useAudio';
+import { getAttackWordById } from '../data/words';
+import { getEnemyTemplateById } from '../data/enemies';
+import type { AttackWord } from '../types/combat';
 
 export const useGameEngine = (
     levelConfig: LevelConfig,
     playerState: PlayerState,
-    onGameEnd: (won: boolean, gold: number, killedLetters: string[]) => void
+    onGameEnd: (won: boolean, gold: number, killedEnemyIds: string[], sessionXp: number) => void
 ) => {
   const { playBgm, pauseBgm, playSound, volume, setVolume, isMuted, setIsMuted } = useAudio();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -35,12 +38,15 @@ export const useGameEngine = (
     status: 'IDLE',
     score: 0,
     sessionGold: 0,
+    sessionXp: 0,
     killCount: 0,
     timeElapsed: 0,
     highScore: 0, // Not really used in level mode but kept for compat
     difficulty: levelConfig.difficulty,
     baseHealth: playerState.maxHealth,
     baseMaxHealth: playerState.maxHealth,
+    playerMana: playerState.maxMana,
+    playerMaxMana: playerState.maxMana,
     enemies: [],
     particles: [],
     stars: [],
@@ -56,20 +62,32 @@ export const useGameEngine = (
     baseHealth: number;
     killCount: number;
     timeElapsed: number;
+    playerMana: number;
+    playerMaxMana: number;
+    inputBuffer: string;
+    cooldowns: Record<string, number>;
+    targetName?: string;
+    targetHealth?: number;
+    targetMaxHealth?: number;
   }>({
     status: 'IDLE',
     score: 0,
     sessionGold: 0,
     baseHealth: playerState.maxHealth,
     killCount: 0,
-    timeElapsed: 0
+    timeElapsed: 0,
+    playerMana: playerState.maxMana,
+    playerMaxMana: playerState.maxMana,
+    inputBuffer: '',
+    cooldowns: {}
   });
 
   const [castleImage, setCastleImage] = useState<HTMLImageElement | null>(null);
 
-  // Keep track of killed letters for quest updates
-  const killedLettersRef = useRef<string[]>([]);
+  // Keep track of killed enemies for quest updates
+  const killedEnemiesRef = useRef<string[]>([]);
   const inputBufferRef = useRef<string>('');
+  const cooldownsRef = useRef<Record<string, number>>({});
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -118,22 +136,34 @@ export const useGameEngine = (
   const spawnEnemy = useCallback(() => {
     const { width, height } = gameStateRef.current.dimensions;
     const difficulty = gameStateRef.current.difficulty;
+    if (levelConfig.enemyIds.length === 0) return;
 
-    const size = Math.random() < 0.8 ? ENEMY_SMALL_SIZE : ENEMY_LARGE_SIZE;
-    const letter = levelConfig.letters[Math.floor(Math.random() * levelConfig.letters.length)];
+    const size = Math.random() < 0.75 ? ENEMY_SMALL_SIZE : ENEMY_LARGE_SIZE;
+    const enemyId = levelConfig.enemyIds[Math.floor(Math.random() * levelConfig.enemyIds.length)];
+    const template = getEnemyTemplateById(enemyId);
+    if (!template) return;
 
-    // Random vibrant color
-    const colors = ['#FF5733', '#33FF57', '#3357FF', '#F333FF', '#33FFF5', '#FFFF33'];
-    const color = colors[Math.floor(Math.random() * colors.length)];
+    const healthScale = 1 + difficulty * 0.2;
+    const maxHealth = Math.round(template.maxHealth * healthScale);
+    const baseGold = Math.max(1, Math.round(maxHealth / 12));
 
     const newEnemy: Enemy = {
       id: Math.random().toString(36).substr(2, 9),
+      templateId: template.id,
       x: width + 50,
       y: Math.random() * (height - 100) + 50,
-      letter,
+      name: template.name,
+      attackWord: template.attackWord,
+      chargeProgress: 0,
+      chargeTimer: 0,
+      chargeIntervalMs: template.chargeIntervalMs,
       size,
-      color,
-      spawnTime: performance.now()
+      color: template.color,
+      spawnTime: performance.now(),
+      maxHealth,
+      health: maxHealth,
+      baseXp: template.baseXp,
+      baseGold
     };
 
     gameStateRef.current.enemies.push(newEnemy);
@@ -150,12 +180,13 @@ export const useGameEngine = (
       // Update Score & Kill Count
       state.score += SCORE_INCREMENT;
       state.killCount += 1;
+      state.sessionXp += enemy.baseXp;
 
       // Gold Logic (Simple: 1 gold per kill, + visual)
-      state.sessionGold += 1;
+      state.sessionGold += enemy.baseGold;
       createExplosion(enemy.x, enemy.y, 'gold', 'GOLD');
 
-      killedLettersRef.current.push(enemy.letter);
+      killedEnemiesRef.current.push(enemy.templateId);
   }, [createExplosion, playSound]);
 
   const endGame = useCallback((won: boolean) => {
@@ -169,7 +200,7 @@ export const useGameEngine = (
           status: state.status
       }));
 
-      onGameEnd(won, state.sessionGold, killedLettersRef.current);
+      onGameEnd(won, state.sessionGold, killedEnemiesRef.current, state.sessionXp);
   }, [pauseBgm, playSound, onGameEnd]);
 
   const update = useCallback((deltaTime: number, time: number) => {
@@ -217,25 +248,29 @@ export const useGameEngine = (
       enemy.x -= speed * deltaTime;
     });
 
-    // Auto-Letter Logic
-    // Check backwards loop for safe removal? Or findIndex.
-    // We'll iterate and collect indices to remove or just remove one per frame for simplicity?
-    // Let's do a loop and check conditions.
-    const autoEnemiesToRemove: number[] = [];
-    state.enemies.forEach((enemy, index) => {
-        const autoUpgradeId = `AUTO_LETTER_${enemy.letter}`;
-        if (playerState.upgrades.includes(autoUpgradeId)) {
-            // Check if alive > 0.5s (500ms)
-            if (time - enemy.spawnTime > 500) {
-                autoEnemiesToRemove.push(index);
+    // Mana regen
+    state.playerMana = Math.min(
+      state.playerMaxMana,
+      state.playerMana + (MANA_REGEN_PER_SECOND * deltaTime) / 1000
+    );
+
+    // Enemy charge attacks
+    state.enemies.forEach(enemy => {
+        enemy.chargeTimer += deltaTime;
+        while (enemy.chargeTimer >= enemy.chargeIntervalMs) {
+            enemy.chargeTimer -= enemy.chargeIntervalMs;
+            enemy.chargeProgress += 1;
+            if (enemy.chargeProgress >= enemy.attackWord.length) {
+                enemy.chargeProgress = 0;
+                state.baseHealth = Math.max(0, state.baseHealth - 1);
+                createExplosion(enemy.x, enemy.y, 'red');
+                playSound('hit');
+                if (state.baseHealth <= 0) {
+                    endGame(false);
+                }
             }
         }
     });
-
-    // Process Auto-Kills (Reverse order to preserve indices)
-    for (let i = autoEnemiesToRemove.length - 1; i >= 0; i--) {
-        killEnemy(autoEnemiesToRemove[i]);
-    }
 
     // Check Base Collision
     const baseX = 50;
@@ -251,8 +286,6 @@ export const useGameEngine = (
 
         if (state.baseHealth <= 0) {
             endGame(false);
-        } else {
-             setUiState(prev => ({ ...prev, baseHealth: state.baseHealth }));
         }
       }
     });
@@ -268,12 +301,34 @@ export const useGameEngine = (
     // Or just let it be, 60fps React renders on simple DOM is usually "okay" but not great.
     // We'll optimize by comparing values before setUiState if needed.
     // Here we'll just do it:
+    const cooldowns = playerState.equippedWordIds.reduce<Record<string, number>>((acc, wordId) => {
+        const word = getAttackWordById(wordId);
+        if (!word) return acc;
+        const lastUsed = cooldownsRef.current[wordId] ?? -Infinity;
+        const remaining = Math.max(0, word.cooldownMs - (time - lastUsed));
+        acc[wordId] = remaining;
+        return acc;
+    }, {});
+
+    const target = state.enemies.reduce<Enemy | null>((closest, enemy) => {
+        if (!closest) return enemy;
+        return enemy.x < closest.x ? enemy : closest;
+    }, null);
+
     setUiState(prev => ({
         ...prev,
         score: state.score,
         sessionGold: state.sessionGold,
+        baseHealth: state.baseHealth,
         killCount: state.killCount,
-        timeElapsed: Math.floor(state.timeElapsed)
+        timeElapsed: Math.floor(state.timeElapsed),
+        playerMana: Math.floor(state.playerMana),
+        playerMaxMana: state.playerMaxMana,
+        inputBuffer: inputBufferRef.current,
+        cooldowns,
+        targetName: target?.name,
+        targetHealth: target?.health,
+        targetMaxHealth: target?.maxHealth
     }));
 
   }, [pauseBgm, playSound, createExplosion, levelConfig, playerState, killEnemy, endGame]);
@@ -345,12 +400,32 @@ export const useGameEngine = (
         ctx.fill();
         ctx.stroke();
 
-        ctx.fillStyle = '#FFF';
-        const fontScale = enemy.letter.length > 1 ? 0.9 : 1.2;
-        ctx.font = `bold ${Math.floor(enemy.size * fontScale)}px Mono`;
+        // Enemy name
+        ctx.fillStyle = '#E2E8F0';
+        ctx.font = `bold ${Math.floor(enemy.size * 0.6)}px Mono`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(enemy.name, enemy.x, enemy.y - enemy.size - 12);
+
+        // Enemy health bar
+        const healthWidth = enemy.size * 2;
+        const healthX = enemy.x - healthWidth / 2;
+        const healthY = enemy.y + enemy.size + 8;
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+        ctx.fillRect(healthX, healthY, healthWidth, 6);
+        ctx.fillStyle = '#34D399';
+        ctx.fillRect(healthX, healthY, healthWidth * (enemy.health / enemy.maxHealth), 6);
+
+        // Enemy charge word with progress
+        const typed = enemy.attackWord.slice(0, enemy.chargeProgress);
+        const remaining = enemy.attackWord.slice(enemy.chargeProgress);
+        ctx.font = `bold ${Math.floor(enemy.size * 0.7)}px Mono`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(enemy.letter, enemy.x, enemy.y);
+        ctx.fillStyle = '#FBBF24';
+        ctx.fillText(typed, enemy.x - ctx.measureText(remaining).width / 2, enemy.y);
+        ctx.fillStyle = '#F8FAFC';
+        ctx.fillText(remaining, enemy.x + ctx.measureText(typed).width / 2, enemy.y);
 
         ctx.shadowBlur = 10;
         ctx.shadowColor = enemy.color;
@@ -406,15 +481,19 @@ export const useGameEngine = (
           status: 'PLAYING',
           score: 0,
           sessionGold: 0,
+          sessionXp: 0,
           killCount: 0,
           timeElapsed: 0,
           baseHealth: playerState.maxHealth,
           baseMaxHealth: playerState.maxHealth,
+          playerMana: playerState.maxMana,
+          playerMaxMana: playerState.maxMana,
           enemies: [],
           particles: []
       };
-      killedLettersRef.current = [];
+      killedEnemiesRef.current = [];
       inputBufferRef.current = '';
+      cooldownsRef.current = {};
 
       setUiState({
           status: 'PLAYING',
@@ -422,10 +501,14 @@ export const useGameEngine = (
           sessionGold: 0,
           killCount: 0,
           timeElapsed: 0,
-          baseHealth: playerState.maxHealth
+          baseHealth: playerState.maxHealth,
+          playerMana: playerState.maxMana,
+          playerMaxMana: playerState.maxMana,
+          inputBuffer: '',
+          cooldowns: {}
       });
       playBgm();
-  }, [playBgm, playerState.maxHealth]);
+  }, [playBgm, playerState.maxHealth, playerState.maxMana]);
 
   const togglePause = useCallback(() => {
       const currentStatus = gameStateRef.current.status;
@@ -453,7 +536,7 @@ export const useGameEngine = (
   // Input
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-        const char = e.key.toUpperCase();
+        const char = e.key.toLowerCase();
 
         if (gameStateRef.current.status === 'IDLE' || gameStateRef.current.status === 'GAME_OVER' || gameStateRef.current.status === 'VICTORY') {
             if (char === 'ENTER') {
@@ -470,23 +553,58 @@ export const useGameEngine = (
                 return;
             }
 
-            if (e.key.length === 1 && /[a-z]/i.test(e.key)) {
-                inputBufferRef.current = `${inputBufferRef.current}${char}`.slice(-2);
-                const buffer = inputBufferRef.current;
+            if (e.key === 'Backspace') {
+                inputBufferRef.current = inputBufferRef.current.slice(0, -1);
+                return;
+            }
 
-                const syllableIndex = gameStateRef.current.enemies.findIndex(
-                  e => e.letter.length === 2 && e.letter === buffer
-                );
-                if (syllableIndex !== -1) {
-                    killEnemy(syllableIndex);
+            if (e.key.length === 1 && /[a-z]/i.test(e.key)) {
+                const nextBuffer = `${inputBufferRef.current}${char}`;
+                const equippedWords = playerState.equippedWordIds
+                  .map(wordId => getAttackWordById(wordId))
+                  .filter((word): word is AttackWord => Boolean(word));
+
+                const matchingWords = equippedWords.filter(word => word.text.startsWith(nextBuffer));
+                if (matchingWords.length === 0) {
+                    const retryMatch = equippedWords.filter(word => word.text.startsWith(char));
+                    inputBufferRef.current = retryMatch.length > 0 ? char : '';
                     return;
                 }
 
-                const enemyIndex = gameStateRef.current.enemies.findIndex(
-                  e => e.letter.length === 1 && e.letter === char
-                );
-                if (enemyIndex !== -1) {
-                    killEnemy(enemyIndex);
+                inputBufferRef.current = nextBuffer;
+
+                const exactMatch = matchingWords.find(word => word.text === nextBuffer);
+                if (exactMatch) {
+                    const now = performance.now();
+                    const lastUsed = cooldownsRef.current[exactMatch.id] ?? -Infinity;
+                    const cooldownReady = now - lastUsed >= exactMatch.cooldownMs;
+                    const hasMana = gameStateRef.current.playerMana >= exactMatch.manaCost;
+
+                    if (!cooldownReady || !hasMana) {
+                        return;
+                    }
+
+                    const targetIndex = gameStateRef.current.enemies.reduce<number | null>((closestIndex, enemy, index) => {
+                        if (closestIndex === null) return index;
+                        return enemy.x < gameStateRef.current.enemies[closestIndex].x ? index : closestIndex;
+                    }, null);
+
+                    if (targetIndex === null) {
+                        return;
+                    }
+
+                    const target = gameStateRef.current.enemies[targetIndex];
+                    cooldownsRef.current[exactMatch.id] = now;
+                    gameStateRef.current.playerMana = Math.max(0, gameStateRef.current.playerMana - exactMatch.manaCost);
+                    target.health = Math.max(0, target.health - exactMatch.damage);
+                    createExplosion(target.x, target.y, exactMatch.type === 'MAGIC' ? '#38BDF8' : '#F59E0B');
+                    playSound('hit');
+
+                    if (target.health <= 0) {
+                        killEnemy(targetIndex);
+                    }
+
+                    inputBufferRef.current = '';
                 }
             }
         } else if (gameStateRef.current.status === 'PAUSED') {
@@ -498,7 +616,7 @@ export const useGameEngine = (
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [startGame, togglePause, killEnemy]);
+  }, [startGame, togglePause, killEnemy, createExplosion, playSound, playerState.equippedWordIds]);
 
   return {
     canvasRef,

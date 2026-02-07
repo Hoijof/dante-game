@@ -8,30 +8,5 @@ export const MIN_DIFFICULTY = 1;
 export const SCORE_INCREMENT = 10;
 export const ENEMY_SMALL_SIZE = 20;
 export const ENEMY_LARGE_SIZE = 40;
-
-export const EASY_LETTERS = ["Z", "X", "C", "V", "B", "N", "M"];
-export const MEDIUM_LETTERS = [
-  ...EASY_LETTERS,
-  "A",
-  "S",
-  "D",
-  "F",
-  "G",
-  "H",
-  "J",
-  "K",
-  "L",
-];
-export const HARD_LETTERS = [
-  ...MEDIUM_LETTERS,
-  "Q",
-  "W",
-  "E",
-  "R",
-  "T",
-  "Y",
-  "U",
-  "I",
-  "O",
-  "P",
-];
+export const MAX_EQUIPPED_WORDS = 4;
+export const MANA_REGEN_PER_SECOND = 4;

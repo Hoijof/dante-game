@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { PlayerState, INITIAL_PLAYER_STATE, Quest, Upgrade } from '../types/progress';
+import { ATTACK_WORDS } from '../data/words';
+import { MAX_EQUIPPED_WORDS } from '../constants';
 
 const STORAGE_KEY = 'type-defense-save-v1';
 
@@ -16,7 +18,19 @@ export const usePlayerProgress = () => {
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          setState({ ...INITIAL_PLAYER_STATE, ...parsed });
+          const merged = { ...INITIAL_PLAYER_STATE, ...parsed };
+          const unlockedByLevel = ATTACK_WORDS.filter(word => word.unlockLevel <= merged.level)
+            .map(word => word.id);
+          const unlockedWordIds = Array.from(new Set([...(merged.unlockedWordIds || []), ...unlockedByLevel]));
+          const equippedWordIds = (merged.equippedWordIds || [])
+            .filter(wordId => unlockedWordIds.includes(wordId))
+            .slice(0, MAX_EQUIPPED_WORDS);
+
+          setState({
+            ...merged,
+            unlockedWordIds,
+            equippedWordIds: equippedWordIds.length > 0 ? equippedWordIds : INITIAL_PLAYER_STATE.equippedWordIds
+          });
         } catch (e) {
           console.error("Failed to load save", e);
         }
@@ -58,7 +72,8 @@ export const usePlayerProgress = () => {
         ...prev,
         gold: prev.gold - upgrade.cost,
         upgrades: [...prev.upgrades, upgrade.id],
-        maxHealth: upgrade.type === 'HEALTH_BOOST' ? prev.maxHealth + 1 : prev.maxHealth
+        maxHealth: upgrade.type === 'HEALTH_BOOST' ? prev.maxHealth + 1 : prev.maxHealth,
+        maxMana: upgrade.type === 'MANA_BOOST' ? prev.maxMana + 4 : prev.maxMana
       };
     });
   }, []);
@@ -119,7 +134,7 @@ export const usePlayerProgress = () => {
       });
   }, []);
 
-  const updateQuestProgress = useCallback((killedLetter: string) => {
+  const updateQuestProgress = useCallback((killedEnemyId: string) => {
       setState(prev => {
           let updated = false;
           const newQuests = prev.activeQuests.map(q => {
@@ -128,7 +143,7 @@ export const usePlayerProgress = () => {
               let progress = false;
               if (q.targetType === 'KILL_COUNT') {
                   progress = true;
-              } else if (q.targetType === 'KILL_SPECIFIC_LETTER' && q.targetLetter === killedLetter) {
+              } else if (q.targetType === 'KILL_SPECIFIC_ENEMY' && q.targetEnemyId === killedEnemyId) {
                   progress = true;
               }
 
@@ -157,6 +172,62 @@ export const usePlayerProgress = () => {
       });
   }, []);
 
+  const equipWord = useCallback((wordId: string) => {
+      setState(prev => {
+          if (!prev.unlockedWordIds.includes(wordId)) return prev;
+          if (prev.equippedWordIds.includes(wordId)) return prev;
+          if (prev.equippedWordIds.length >= MAX_EQUIPPED_WORDS) return prev;
+
+          return {
+              ...prev,
+              equippedWordIds: [...prev.equippedWordIds, wordId]
+          };
+      });
+  }, []);
+
+  const unequipWord = useCallback((wordId: string) => {
+      setState(prev => ({
+          ...prev,
+          equippedWordIds: prev.equippedWordIds.filter(id => id !== wordId)
+      }));
+  }, []);
+
+  const gainExperience = useCallback((amount: number) => {
+      if (amount <= 0) return;
+
+      setState(prev => {
+          let nextLevel = prev.level;
+          let xp = prev.xp + amount;
+          let xpToNext = prev.xpToNext;
+          let maxHealth = prev.maxHealth;
+          let maxMana = prev.maxMana;
+
+          while (xp >= xpToNext) {
+              xp -= xpToNext;
+              nextLevel += 1;
+              xpToNext = Math.floor(xpToNext * 1.25);
+              if (nextLevel % 2 === 0) {
+                  maxHealth += 1;
+              }
+              maxMana += 2;
+          }
+
+          const newlyUnlocked = ATTACK_WORDS.filter(word => word.unlockLevel <= nextLevel)
+            .map(word => word.id);
+          const unlockedWordIds = Array.from(new Set([...prev.unlockedWordIds, ...newlyUnlocked]));
+
+          return {
+              ...prev,
+              level: nextLevel,
+              xp,
+              xpToNext,
+              maxHealth,
+              maxMana,
+              unlockedWordIds
+          };
+      });
+  }, []);
+
   const resetProgress = useCallback(() => {
       setState(INITIAL_PLAYER_STATE);
   }, []);
@@ -170,6 +241,9 @@ export const usePlayerProgress = () => {
     acceptQuest,
     claimQuestReward,
     updateQuestProgress,
+    equipWord,
+    unequipWord,
+    gainExperience,
     resetProgress
   };
 };

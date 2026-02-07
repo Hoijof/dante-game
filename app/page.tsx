@@ -1,13 +1,12 @@
 "use client";
 export const dynamic = "force-dynamic";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { usePlayerProgress } from './hooks/usePlayerProgress';
 import { MapView } from './components/MapView';
 import { TownView } from './components/TownView';
 import { GameView } from './components/GameView';
 import { GAME_LEVELS } from './data/levels';
-import { LevelConfig } from './types/progress';
 
 type ViewState = 'MAP' | 'TOWN' | 'GAME';
 
@@ -20,7 +19,10 @@ const Home = () => {
     completeLevel,
     acceptQuest,
     claimQuestReward,
-    updateQuestProgress
+    updateQuestProgress,
+    equipWord,
+    unequipWord,
+    gainExperience
   } = usePlayerProgress();
 
   const [currentView, setCurrentView] = useState<ViewState>('MAP');
@@ -44,14 +46,18 @@ const Home = () => {
     }
   };
 
-  const handleGameEnd = (won: boolean, sessionGold: number, killedLetters: string[]) => {
+  const handleGameEnd = (won: boolean, sessionGold: number, killedEnemyIds: string[], sessionXp: number) => {
     // 1. Add session gold (loot)
     if (sessionGold > 0) {
         addGold(sessionGold);
     }
 
     // 2. Update Quests
-    killedLetters.forEach(letter => updateQuestProgress(letter));
+    killedEnemyIds.forEach(enemyId => updateQuestProgress(enemyId));
+
+    if (sessionXp > 0) {
+        gainExperience(sessionXp);
+    }
 
     // 3. Handle Level Completion
     if (won && currentLevelId) {
@@ -75,6 +81,8 @@ const Home = () => {
             onBuyUpgrade={buyUpgrade}
             onAcceptQuest={acceptQuest}
             onClaimQuest={claimQuestReward}
+            onEquipWord={equipWord}
+            onUnequipWord={unequipWord}
             onBack={handleBackToMap}
           />
       );

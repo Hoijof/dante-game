@@ -7,12 +7,21 @@ export interface Point {
 
 export interface Enemy {
   id: string;
+  templateId: string;
   x: number;
   y: number;
-  letter: string;
+  name: string;
+  attackWord: string;
+  chargeProgress: number;
+  chargeTimer: number;
+  chargeIntervalMs: number;
   size: number;
   color: string;
   spawnTime: number; // For auto-kill logic
+  maxHealth: number;
+  health: number;
+  baseXp: number;
+  baseGold: number;
 }
 
 export interface Particle {
@@ -40,12 +49,15 @@ export interface GameState {
   status: GameStatus;
   score: number;
   sessionGold: number;
+  sessionXp: number;
   killCount: number;
   timeElapsed: number; // in seconds
   highScore: number;
   difficulty: number;
   baseHealth: number;
   baseMaxHealth: number;
+  playerMana: number;
+  playerMaxMana: number;
   enemies: Enemy[];
   particles: Particle[];
   stars: Star[];
