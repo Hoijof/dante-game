@@ -17,37 +17,66 @@ export const TownView: React.FC<TownViewProps> = ({
   onClaimQuest,
   onBack
 }) => {
+  const townBonus = playerState.townLevel * 10;
+  const nextTownLevel = playerState.townLevel + 1;
+  const maxTownLevel = 3;
+  const townUpgradeStatus = nextTownLevel > maxTownLevel
+    ? 'Town fully upgraded!'
+    : `Upgrade to Town Level ${nextTownLevel} for +${nextTownLevel * 10}% reward gold.`;
+
   return (
-    <div className="w-full h-full bg-slate-800 text-white p-8 overflow-y-auto">
-      <div className="flex justify-between items-center mb-8 border-b border-gray-600 pb-4">
-        <h1 className="text-4xl font-bold">Town 🏠</h1>
-        <div className="text-2xl font-mono text-yellow-400">
+    <div className="w-full h-full bg-gradient-to-br from-slate-950 via-slate-800 to-slate-900 text-white p-8 overflow-y-auto">
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-8 border-b border-slate-700 pb-4 gap-4">
+        <div>
+          <h1 className="text-4xl font-bold">Town 🏠</h1>
+          <p className="text-slate-300 mt-1">Spend your gold to grow the town and boost rewards.</p>
+        </div>
+        <div className="text-2xl font-mono text-yellow-300 bg-slate-900/60 px-4 py-2 rounded-full border border-yellow-500/40 shadow-lg">
           💰 {playerState.gold}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="bg-slate-800/70 p-6 rounded-2xl shadow-xl border border-slate-700 lg:col-span-1">
+          <h2 className="text-2xl font-bold mb-4">Town Hall 🏛️</h2>
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-lg text-slate-200">Town Level</div>
+            <div className="text-2xl font-bold text-cyan-300">Lv {playerState.townLevel}</div>
+          </div>
+          <div className="w-full bg-slate-700 h-3 rounded-full overflow-hidden mb-4">
+            <div
+              className="bg-cyan-400 h-full transition-all duration-500"
+              style={{ width: `${Math.min(100, (playerState.townLevel / maxTownLevel) * 100)}%` }}
+            />
+          </div>
+          <div className="text-sm text-slate-300">Current bonus: +{townBonus}% reward gold.</div>
+          <div className="text-sm text-slate-400 mt-2">{townUpgradeStatus}</div>
+        </div>
+
         {/* SHOP SECTION */}
-        <div className="bg-slate-700 p-6 rounded-lg shadow-lg">
+        <div className="bg-slate-800/70 p-6 rounded-2xl shadow-xl border border-slate-700 lg:col-span-1">
           <h2 className="text-2xl font-bold mb-4">Market 🛒</h2>
           <div className="space-y-4">
             {SHOP_UPGRADES.map(upgrade => {
               const isOwned = playerState.upgrades.includes(upgrade.id);
               const canAfford = playerState.gold >= upgrade.cost;
+              const isTownUpgrade = upgrade.type === 'TOWN_UPGRADE';
+              const upgradeLevel = Number(upgrade.id.split('_').pop());
+              const isTownLocked = isTownUpgrade && upgradeLevel !== playerState.townLevel + 1;
 
               return (
-                <div key={upgrade.id} className="flex justify-between items-center bg-slate-800 p-4 rounded">
+                <div key={upgrade.id} className="flex justify-between items-center bg-slate-900/60 p-4 rounded-lg border border-slate-700">
                   <div>
                     <div className="font-bold text-lg">{upgrade.name}</div>
                     <div className="text-sm text-gray-400">{upgrade.description}</div>
                   </div>
                   <button
                     onClick={() => onBuyUpgrade(upgrade)}
-                    disabled={isOwned || !canAfford}
+                    disabled={isOwned || !canAfford || isTownLocked}
                     className={`px-4 py-2 rounded font-bold transition-colors
                       ${isOwned
                         ? 'bg-green-600 text-white cursor-default'
-                        : canAfford
+                        : canAfford && !isTownLocked
                           ? 'bg-yellow-500 hover:bg-yellow-600 text-black'
                           : 'bg-gray-600 text-gray-400 cursor-not-allowed'}
                     `}
@@ -61,7 +90,7 @@ export const TownView: React.FC<TownViewProps> = ({
         </div>
 
         {/* QUEST BOARD */}
-        <div className="bg-slate-700 p-6 rounded-lg shadow-lg">
+        <div className="bg-slate-800/70 p-6 rounded-2xl shadow-xl border border-slate-700 lg:col-span-1">
           <h2 className="text-2xl font-bold mb-4">Quest Board 📜</h2>
           <div className="space-y-4">
             {TOWN_QUESTS.map(quest => {

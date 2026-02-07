@@ -69,6 +69,7 @@ export const useGameEngine = (
 
   // Keep track of killed letters for quest updates
   const killedLettersRef = useRef<string[]>([]);
+  const inputBufferRef = useRef<string>('');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -345,7 +346,8 @@ export const useGameEngine = (
         ctx.stroke();
 
         ctx.fillStyle = '#FFF';
-        ctx.font = `bold ${Math.floor(enemy.size * 1.2)}px Mono`;
+        const fontScale = enemy.letter.length > 1 ? 0.9 : 1.2;
+        ctx.font = `bold ${Math.floor(enemy.size * fontScale)}px Mono`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(enemy.letter, enemy.x, enemy.y);
@@ -412,6 +414,7 @@ export const useGameEngine = (
           particles: []
       };
       killedLettersRef.current = [];
+      inputBufferRef.current = '';
 
       setUiState({
           status: 'PLAYING',
@@ -467,9 +470,24 @@ export const useGameEngine = (
                 return;
             }
 
-            const enemyIndex = gameStateRef.current.enemies.findIndex(e => e.letter === char);
-            if (enemyIndex !== -1) {
-                killEnemy(enemyIndex);
+            if (e.key.length === 1 && /[a-z]/i.test(e.key)) {
+                inputBufferRef.current = `${inputBufferRef.current}${char}`.slice(-2);
+                const buffer = inputBufferRef.current;
+
+                const syllableIndex = gameStateRef.current.enemies.findIndex(
+                  e => e.letter.length === 2 && e.letter === buffer
+                );
+                if (syllableIndex !== -1) {
+                    killEnemy(syllableIndex);
+                    return;
+                }
+
+                const enemyIndex = gameStateRef.current.enemies.findIndex(
+                  e => e.letter.length === 1 && e.letter === char
+                );
+                if (enemyIndex !== -1) {
+                    killEnemy(enemyIndex);
+                }
             }
         } else if (gameStateRef.current.status === 'PAUSED') {
             if (e.key === 'Escape') {
