@@ -23,7 +23,7 @@ export const usePlayerProgress = () => {
             .map(word => word.id);
           const unlockedWordIds = Array.from(new Set([...(merged.unlockedWordIds || []), ...unlockedByLevel]));
           const equippedWordIds = (merged.equippedWordIds || [])
-            .filter(wordId => unlockedWordIds.includes(wordId))
+            .filter((wordId: string) => unlockedWordIds.includes(wordId))
             .slice(0, MAX_EQUIPPED_WORDS);
 
           setState({
