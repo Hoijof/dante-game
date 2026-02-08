@@ -1,11 +1,13 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useGameEngine } from '../hooks/useGameEngine';
 import { LevelConfig, PlayerState } from '../types/progress';
+import { formatWordWithSyllables, getAttackWordById } from '../data/words';
+import type { AttackWord } from '../types/combat';
 
 interface GameViewProps {
   levelConfig: LevelConfig;
   playerState: PlayerState;
-  onGameEnd: (won: boolean, gold: number, killedLetters: string[]) => void;
+  onGameEnd: (won: boolean, gold: number, killedEnemyIds: string[], sessionXp: number) => void;
   onBack: () => void;
 }
 
@@ -15,6 +17,9 @@ export const GameView: React.FC<GameViewProps> = ({
   onGameEnd,
   onBack
 }) => {
+  const equippedWords = playerState.equippedWordIds
+    .map(wordId => getAttackWordById(wordId))
+    .filter((word): word is AttackWord => Boolean(word));
   const { canvasRef, uiState, startGame, togglePause, audio } = useGameEngine(
       levelConfig,
       playerState,
@@ -38,11 +43,29 @@ export const GameView: React.FC<GameViewProps> = ({
         {/* HUD */}
         {uiState.status !== 'IDLE' && (
             <div className="p-4 flex flex-col gap-4 sm:flex-row sm:justify-between text-white text-xl">
-                <div className="bg-black/50 px-4 py-2 rounded-full border border-cyan-500/40 shadow-lg shadow-cyan-500/20">
+                <div className="bg-black/50 px-4 py-2 rounded-2xl border border-cyan-500/40 shadow-lg shadow-cyan-500/20 space-y-2">
                     <div className="text-yellow-300 font-bold">💰 {uiState.sessionGold}</div>
 
+                    <div className="text-sm text-slate-300">Lv {playerState.level} · XP {playerState.xp}/{playerState.xpToNext}</div>
+                    <div className="w-48 bg-slate-800 h-2 rounded-full overflow-hidden">
+                        <div
+                          className="bg-cyan-400 h-full"
+                          style={{ width: `${Math.min(100, (playerState.xp / playerState.xpToNext) * 100)}%` }}
+                        />
+                    </div>
+
+                    <div className="text-sm text-cyan-200">
+                        Mana: {uiState.playerMana} / {uiState.playerMaxMana}
+                    </div>
+                    <div className="w-48 bg-slate-800 h-2 rounded-full overflow-hidden">
+                        <div
+                          className="bg-blue-400 h-full"
+                          style={{ width: `${Math.min(100, (uiState.playerMana / uiState.playerMaxMana) * 100)}%` }}
+                        />
+                    </div>
+
                     {/* Objective Display */}
-                    <div className="mt-2 text-cyan-200 text-base">
+                    <div className="text-cyan-200 text-base">
                         {levelConfig.winCondition.type === 'KILL_COUNT' && (
                             <span>⚔️ Kills: {uiState.killCount} / {levelConfig.winCondition.value}</span>
                         )}
@@ -51,9 +74,40 @@ export const GameView: React.FC<GameViewProps> = ({
                         )}
                     </div>
                 </div>
-                <div className="text-right bg-black/50 px-4 py-2 rounded-full border border-red-500/40 shadow-lg shadow-red-500/20">
+                <div className="text-right bg-black/50 px-4 py-2 rounded-2xl border border-red-500/40 shadow-lg shadow-red-500/20 space-y-2">
                     <div className="text-red-500 text-3xl">{'❤️'.repeat(uiState.baseHealth)}</div>
-                    <div className="text-sm text-gray-300 mt-1">{levelConfig.name}</div>
+                    <div className="text-sm text-gray-300">{levelConfig.name}</div>
+                    {uiState.targetName && uiState.targetHealth !== undefined && uiState.targetMaxHealth !== undefined && (
+                        <div className="text-xs text-slate-200">
+                          Target: {uiState.targetName} ({uiState.targetHealth}/{uiState.targetMaxHealth})
+                        </div>
+                    )}
+                </div>
+            </div>
+        )}
+
+        {(uiState.status === 'PLAYING' || uiState.status === 'PAUSED') && (
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/70 border border-slate-700 rounded-2xl px-6 py-4 text-white pointer-events-none">
+                <div className="text-center text-sm text-slate-300 mb-2">
+                    Type a word to attack · Current input: <span className="text-cyan-300 font-bold">{uiState.inputBuffer || '...'}</span>
+                </div>
+                <div className="flex flex-wrap gap-3 justify-center">
+                    {equippedWords.map(word => {
+                        const remaining = uiState.cooldowns[word.id] ?? 0;
+                        const onCooldown = remaining > 0;
+                        return (
+                            <div key={word.id} className="px-3 py-2 rounded-xl border border-slate-600 bg-slate-900/70 min-w-[140px] text-center">
+                                <div className="font-bold text-sm">{word.text}</div>
+                                <div className="text-xs text-slate-400">{formatWordWithSyllables(word)}</div>
+                                <div className="text-xs text-slate-300">
+                                  {word.type === 'MAGIC' ? `Mana ${word.manaCost}` : 'Melee'} · {word.damage} dmg
+                                </div>
+                                <div className={`text-xs mt-1 ${onCooldown ? 'text-red-400' : 'text-emerald-400'}`}>
+                                  {onCooldown ? `Cooldown ${(remaining / 1000).toFixed(1)}s` : 'Ready'}
+                                </div>
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
         )}
@@ -63,7 +117,7 @@ export const GameView: React.FC<GameViewProps> = ({
              <div className="absolute inset-0 flex items-center justify-center bg-black/80 pointer-events-auto">
                 <div className="text-center text-white p-8 border-2 border-cyan-400/60 rounded-2xl bg-slate-950/90 shadow-2xl shadow-cyan-500/20">
                     <h1 className="text-4xl font-bold mb-2 text-cyan-300 drop-shadow">{levelConfig.name}</h1>
-                    <p className="mb-6 text-lg text-slate-300">{levelConfig.description || "Defeat the letters!"}</p>
+                    <p className="mb-6 text-lg text-slate-300">{levelConfig.description || "Channel syllable magic to defeat the enemy."}</p>
 
                     <div className="mb-6">
                         <h3 className="text-lg font-bold mb-2 text-slate-200">Objective:</h3>
@@ -89,6 +143,14 @@ export const GameView: React.FC<GameViewProps> = ({
                     </button>
 
                     <div className="mt-8 border-t border-slate-700 pt-4">
+                        <div className="text-sm text-slate-300 mb-2">Equipped Words</div>
+                        <div className="flex flex-wrap gap-2 justify-center mb-4">
+                          {equippedWords.map(word => (
+                            <div key={word.id} className="px-3 py-1 rounded-full bg-slate-900/80 border border-slate-700 text-sm">
+                              {word.text}
+                            </div>
+                          ))}
+                        </div>
                         <label className="block text-sm font-bold mb-2 text-slate-300">Volume</label>
                         <input
                             type="range"

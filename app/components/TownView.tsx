@@ -1,12 +1,16 @@
 import React from 'react';
 import { PlayerState, Quest, Upgrade } from '../types/progress';
 import { SHOP_UPGRADES, TOWN_QUESTS } from '../data/items';
+import { ATTACK_WORDS, formatWordWithSyllables } from '../data/words';
+import { MAX_EQUIPPED_WORDS } from '../constants';
 
 interface TownViewProps {
   playerState: PlayerState;
   onBuyUpgrade: (upgrade: Upgrade) => void;
   onAcceptQuest: (quest: Quest) => void;
   onClaimQuest: (questId: string) => void;
+  onEquipWord: (wordId: string) => void;
+  onUnequipWord: (wordId: string) => void;
   onBack: () => void;
 }
 
@@ -15,6 +19,8 @@ export const TownView: React.FC<TownViewProps> = ({
   onBuyUpgrade,
   onAcceptQuest,
   onClaimQuest,
+  onEquipWord,
+  onUnequipWord,
   onBack
 }) => {
   const townBonus = playerState.townLevel * 10;
@@ -36,7 +42,7 @@ export const TownView: React.FC<TownViewProps> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-slate-800/70 p-6 rounded-2xl shadow-xl border border-slate-700 lg:col-span-1">
           <h2 className="text-2xl font-bold mb-4">Town Hall 🏛️</h2>
           <div className="flex items-center justify-between mb-3">
@@ -83,6 +89,50 @@ export const TownView: React.FC<TownViewProps> = ({
                   >
                     {isOwned ? 'OWNED' : `${upgrade.cost} 💰`}
                   </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* SPELLBOOK */}
+        <div className="bg-slate-800/70 p-6 rounded-2xl shadow-xl border border-slate-700 lg:col-span-1">
+          <h2 className="text-2xl font-bold mb-4">Spellbook 📖</h2>
+          <div className="text-sm text-slate-300 mb-4">
+            Equip up to {MAX_EQUIPPED_WORDS} attack words. Longer words deal more damage but take longer to recharge.
+          </div>
+          <div className="space-y-3">
+            {ATTACK_WORDS.filter(word => playerState.unlockedWordIds.includes(word.id)).map(word => {
+              const isEquipped = playerState.equippedWordIds.includes(word.id);
+              const isAtLimit = playerState.equippedWordIds.length >= MAX_EQUIPPED_WORDS;
+              const canEquip = !isEquipped && !isAtLimit;
+
+              return (
+                <div key={word.id} className="flex items-center justify-between bg-slate-900/60 p-3 rounded-lg border border-slate-700">
+                  <div>
+                    <div className="font-bold text-lg">{word.text} <span className="text-xs text-cyan-300">({formatWordWithSyllables(word)})</span></div>
+                    <div className="text-xs text-slate-400">
+                      {word.type === 'MAGIC' ? `Magic · ${word.manaCost} mana` : 'Melee'} · {word.damage} dmg · {Math.round(word.cooldownMs / 100) / 10}s cooldown
+                    </div>
+                  </div>
+                  {isEquipped ? (
+                    <button
+                      onClick={() => onUnequipWord(word.id)}
+                      className="px-3 py-1 rounded font-bold bg-emerald-600 hover:bg-emerald-500 text-white"
+                    >
+                      EQUIPPED
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => onEquipWord(word.id)}
+                      disabled={!canEquip}
+                      className={`px-3 py-1 rounded font-bold transition-colors ${
+                        canEquip ? 'bg-yellow-500 hover:bg-yellow-600 text-black' : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                      }`}
+                    >
+                      {isAtLimit ? 'FULL' : 'EQUIP'}
+                    </button>
+                  )}
                 </div>
               );
             })}
